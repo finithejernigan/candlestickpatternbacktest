@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Window>
+	<Sheet>
+		<Name>Sheet 1</Name>
+		<Pane>
+			<ChartID>1026</ChartID>
+			<PercentHeight>75</PercentHeight>
+			<Formula>_SECTION_BEGIN("Price");\r\nSetChartOptions(0,chartShowArrows|chartShowDates);\r\n_N(Title = StrFormat("{{NAME}} - {{INTERVAL}} {{DATE}} Open %g, Hi %g, Lo %g, Close %g (%.1f%%) {{VALUES}}", O, H, L, C, SelectedValue( ROC( C, 1 ) ) ));\r\nPlot( C, "Close", ParamColor("Color", colorDefault ), styleNoTitle | ParamStyle("Style") | GetPriceStyle() ); \r\n_SECTION_END();\r\n\r\n_SECTION_BEGIN("MA");\r\nP = ParamField("Price field",-1);\r\nPeriods = Param("Periods", 15, 2, 300, 1, 10 );\r\nPlot( MA( P, Periods ), _DEFAULT_NAME(), ParamColor( "Color", colorCycle ), ParamStyle("Style") ); \r\n_SECTION_END();\r\n\r\n_SECTION_BEGIN("MA1");\r\nP = ParamField("Price field",-1);\r\nPeriods = Param("Periods", 15, 2, 300, 1, 10 );\r\nPlot( MA( P, Periods ), _DEFAULT_NAME(), ParamColor( "Color", colorCycle ), ParamStyle("Style") ); \r\n_SECTION_END();\r\n\r\n_SECTION_BEGIN("MA2");\r\nP = ParamField("Price field",-1);\r\nPeriods = Param("Periods", 15, 2, 300, 1, 10 );\r\nPlot( MA( P, Periods ), _DEFAULT_NAME(), ParamColor( "Color", colorCycle ), ParamStyle("Style") ); \r\n_SECTION_END();\r\n</Formula>
+			<FilePath>Formulas\\Drag-drop\\Price 1.afl</FilePath>
+			<Flags>256</Flags>
+			<MoreFlags>1073741835</MoreFlags>
+			<Min>21.7799</Min>
+			<Max>22.3186</Max>
+		</Pane>
+		<Pane>
+			<ChartID>1023</ChartID>
+			<PercentHeight>25</PercentHeight>
+			<Formula>Plot( Volume, _DEFAULT_NAME(), ParamColor("Color", colorBlueGrey ), ParamStyle( "Style", styleHistogram | styleOwnScale | styleThick, maskHistogram  ) );\r\n</Formula>
+			<FilePath>Formulas\\Basic Charts\\Volume.afl</FilePath>
+			<Flags>256</Flags>
+			<MoreFlags>1342177281</MoreFlags>
+			<Min>-91027.8</Min>
+			<Max>4.78978e+06</Max>
+		</Pane>
+	</Sheet>
+	<Sheet>
+		<Name>Sheet 2</Name>
+		<Pane>
+			<ChartID>0</ChartID>
+			<PercentHeight>50</PercentHeight>
+		</Pane>
+	</Sheet>
+	<Sheet>
+		<Name>Sheet 3</Name>
+		<Pane>
+			<ChartID>0</ChartID>
+			<PercentHeight>50</PercentHeight>
+		</Pane>
+	</Sheet>
+	<Sheet>
+		<Name>Sheet 4</Name>
+		<Pane>
+			<ChartID>0</ChartID>
+			<PercentHeight>50</PercentHeight>
+		</Pane>
+	</Sheet>
+	<Sheet>
+		<Name>Sheet 5</Name>
+		<Pane>
+			<ChartID>0</ChartID>
+			<PercentHeight>50</PercentHeight>
+		</Pane>
+	</Sheet>
+	<Sheet>
+		<Name>Sheet 6</Name>
+		<Pane>
+			<ChartID>0</ChartID>
+			<PercentHeight>50</PercentHeight>
+		</Pane>
+	</Sheet>
+	<Sheet>
+		<Name>Sheet 7</Name>
+		<Pane>
+			<ChartID>0</ChartID>
+			<PercentHeight>50</PercentHeight>
+		</Pane>
+	</Sheet>
+	<Sheet>
+		<Name>Sheet 8</Name>
+		<Pane>
+			<ChartID>0</ChartID>
+			<PercentHeight>50</PercentHeight>
+		</Pane>
+	</Sheet>
+</Window>

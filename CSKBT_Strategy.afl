@@ -1,0 +1,867 @@
+// 123 continuation short Strategy
+// added //** for values that should be in a column to optimize
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//ADDING FUNCTIONS
+
+/*
+function myFunction( parameter1, parameter2 ) {
+  // function body
+}
+*/
+
+
+EnableTextOutput(0);  
+SetBarsRequired( sbrAll, sbrAll );
+
+tradelogPath = "C:\\Program Files\\AmiBroker\\Reports";
+SetOption("NoDefaultColumns", False);
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//SETTING FILTERING
+
+filteringParam6 = Param( "filtering6", 1, 0, 20, 1 );
+addColumnsToExplorationParam6 = Param( "addColumnsToExploration6", 0, 0, 5, 1 );
+
+stopMultipleParam6 = Param( "stopMultiplePercent - factor of positionSizeFactor6", 0.3, 0.01, 10, 0.01 );
+profitRmultipleParam6 = Param( "profitRmultple - factor of positionSizeFactor6", 0.9, 0.01, 10, 0.01 );
+tradegoodforbarsParam6 = Param( "trade good for X number of bars6", 85, 0, 1000, 1 );
+scanbackParam6 = Param( "scanback6", 3, 0, 100000, 1 );
+
+RSizeDollarsParam6 = Param( "RSizeDollars6", 100, 1, 10000, 1 );
+
+addbacktestinglogicParam6 = Param( "add backtesting logic6", 1, 0, 20, 1 );
+addtradeentrylogicParam6 = Param( "add trade entry logic6", 1, 0, 20, 1 );
+
+D14minvolumeParam6 = Param( "14 day minimum volume6", 1000000, 0, 1000000000000, 1000 );
+D14ATRcutoffParam6 = Param( "14 day ATR Cutoff6", 0.5, 0, 50, 0.1 );
+optimizedParametersParam6 = Param( "optimized Parameters6", 1, 0, 1, 1 );
+
+///////////////////////////////////////////
+
+filtering = filteringParam6;
+addColumnsToExploration = addColumnsToExplorationParam6;
+stopMultiple = stopMultipleParam6;
+profitRmultiple = profitRmultipleParam6;
+addbacktestinglogic = addbacktestinglogicParam6;
+addtradeentrylogic = addtradeentrylogicParam6;
+tradegoodforbars = tradegoodforbarsParam6;
+scanback = scanbackParam6;
+optimizedParameters = optimizedParametersParam6;
+RSizeDollars = RSizeDollarsParam6;
+D14ATRcutoff = D14ATRcutoffParam6;
+D14minvolume = D14minvolumeParam6;
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//SETTING OPTIMIZED SYSTEM PARAMETERS
+
+if (optimizedParameters == 1)
+{
+// set optimized parameters	
+	macd212MIN = 0.60;
+	macd212MAX = 100;
+	rsi60dailyMIN = 0;
+	rsi60dailyMAX = 53;
+	ABStodaysGapMIN = 0.15;
+	ABStodaysGapMAX = 87;
+	D200SMAMIN = 55;
+	D200SMAMAX = 3373;
+	BBandTopopen152MIN = 95;
+	BBandTopopen152MAX = 3478;
+
+	D14VolumeMIN = 1600000;
+	D14VolumeMAX = 1000000000000;
+	D14ATRMIN = 0.5;
+	D14ATRMAX = 100;
+	
+}
+if (optimizedParameters == 0)
+{
+// set optimized parameters
+	macd212MIN = -100000000000;
+	macd212MAX = 1000000000000;
+	rsi60dailyMIN = -100000000000;
+	rsi60dailyMAX = 1000000000000;
+	ABStodaysGapMIN = -100000000000;
+	ABStodaysGapMAX = 1000000000000;
+	D200SMAMIN = -100000000000;
+	D200SMAMAX = 1000000000000;
+	BBandTopopen152MIN = -100000000000;
+	BBandTopopen152MAX = 1000000000000;
+
+	D14VolumeMIN = -100000000000;
+	D14VolumeMAX = 1000000000000;
+	D14ATRMIN = -100000000000;
+	D14ATRMAX = 1000000000000;
+
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//VARIABLES THAT AREN'T SYSTEM SPECIFIC
+
+minTimeToEnter = 093000;
+maxTimeToEnter = 151500;
+StartTimePremarket = 000000; 
+EndTimePremarket = 092900;
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//SETTING DATE TIME VARIABLES
+
+tm = TimeNum();
+dt = DateTime();
+nw = Now();
+hr = Hr = Hour();
+mn = Mn = Minute();
+dy = Day();
+mth = mnth = Month();
+yr = Year();
+dn = DateNum();
+bi = BarIndex();
+open_hour = 9;
+open_minute = 30;
+
+MinutesSinceOpen = (hr * 60 + mn) - (open_hour * 60 + open_minute);
+PreMarket = MinutesSinceOpen < 0;
+AfterHours = MinutesSinceOpen >= 390;
+newday = MinutesSinceOpen == 0 || (MinutesSinceOpen > 0 && Ref(MinutesSinceOpen, -1) < 0) || (MinutesSinceOpen > 0 && dn != dn); // NEW DAY IS NEW TRADING DAY LIKE 9:25AM TO 9:30AM
+newdaybar = dn != Ref(dn, -1); //NEW DAY BAR IS A NEW ACTUAL DAY LIKE 11/1 TO 11/2
+lastrthbar = Ref(MinutesSinceOpen == 390, 1) || (MinutesSinceOpen < 390 && Ref(MinutesSinceOpen, 1) > 390) || (MinutesSinceOpen < 390 && dn != Ref( dn, 1 ));
+Bars_so_far_today = BarsSince(newday);  //**
+
+/////
+//	MUST ADD IIf( FirstBarPremarket == EndBarPremarket, 0, XXXXXX);
+//	TO ALL PREMARKET CALCULATION TO ALL FOR ZERO PREMARKET BARS
+////
+FirstBarPremarket = ValueWhen(newdaybar == 1, BarIndex(), 1);
+EndBarPremarket = ValueWhen(newday == 1, BarIndex()-1, 1);
+premarketBarsToday = IIf( FirstBarPremarket == EndBarPremarket, 0, ValueWhen(tm < EndTimePremarket, BarsSince(dn != Ref(dn, 1))));
+
+//AddColumn(BarIndex(), "BarIndex");
+//AddColumn(FirstBarPremarket, "FirstBarPremarket");
+//AddColumn(EndBarPremarket, "EndBarPremarket");
+
+//AddColumn(premarketBarsToday, "premarketBarsToday");
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//CALCULATING BREAKOUT PARAMETERS
+
+YesterdayDailyHigh = ValueWhen(lastrthbar == 1, HighestSince(newday, H));
+YesterdayDailyLow = ValueWhen(lastrthbar == 1, LowestSince(newday, L));
+YesterdayDailyClose = ValueWhen(lastrthbar == 1, C);
+YesterdayDailyOpen = ValueWhen(newday, O);
+YesterdayDailyVolume = ValueWhen(lastrthbar, Sum(V, BarsSince(newday)+1));
+YesterdayDailyTrueRange = YesterdayDailyHigh - YesterdayDailyLow;
+rsidaily = RSIa( YesterdayDailyClose );
+
+TodaysHigh = Ref(HHV(High, Bars_so_far_today+1), -1);
+TodaysLow = Ref(LLV(Low, Bars_so_far_today+1), -1);
+
+PremarketHigh = IIf( FirstBarPremarket == EndBarPremarket, 0, ValueWhen( MinutesSinceOpen < 0, HighestSince(newdaybar, H)));
+PremarketLow = IIf( FirstBarPremarket == EndBarPremarket, 0, ValueWhen( MinutesSinceOpen < 0, LowestSince(newdaybar, L)));
+
+openingOpen = ValueWhen(MinutesSinceOpen == 0, Open);
+openingHigh = ValueWhen(MinutesSinceOpen == 0, High);
+openingLow = ValueWhen(MinutesSinceOpen == 0, Low);
+openingClose = ValueWhen(MinutesSinceOpen == 0, Close);
+openingVolume = ValueWhen(MinutesSinceOpen == 0, Volume);
+
+//#########################################################################################################
+
+orDifference = openingHigh - openingLow; //**
+
+aboveOrMax = High > openingHigh;
+belowOrMin = High < openingLow;
+
+highbreakout = ExRem(aboveOrMax, newday);
+lowbreakout = ExRem(belowOrMin, newday);
+
+//#########################################################################################################
+
+/////
+//	MUST ADD IIf( FirstBarPremarket == EndBarPremarket, 0, XXXXXX);
+//	TO ALL PREMARKET CALCULATION TO ALL FOR ZERO PREMARKET BARS
+////
+dojiness = ((openingClose-openingOpen)/(openingHigh-openingLow)); //**
+priceinyesterdaysrange = ((Open-YesterdayDailyLow)/(YesterdayDailyHigh-YesterdayDailyLow))*100; //**
+priceintodaysrange = ((Open-TodaysLow)/(TodaysHigh-TodaysLow + 1e-9))*100; //**
+
+priceinpremarketrangeCALC = ((Open-PremarketLow)/(PremarketHigh-PremarketLow + 1e-9))*100; 
+priceinpremarketrange = IIf( priceinpremarketrangeCALC > 10000, 0, priceinpremarketrangeCALC); //**
+TodayPremarketVolume =  IIf( FirstBarPremarket == EndBarPremarket, 0, ValueWhen(MinutesSinceOpen < 0, Sum(V, BarsSince(newdaybar)+1))); //**
+
+
+//AddColumn(priceinpremarketrange, "priceinpremarketrange");
+//#########################################################################################################
+
+//AddColumn (PremarketHigh, "PremarketHigh");
+//AddColumn (PremarketLow, "PremarketLow");
+//AddColumn (MinutesSinceOpen, "MinutesSinceOpen");
+//AddColumn (Volume, "Volume");
+//AddColumn (newdaybar, "newdaybar");
+//AddColumn (BarIndex(), "BarIndex");
+//AddColumn (FirstBarPremarket, "FirstBarPremarket");
+//AddColumn (EndBarPremarket, "EndBarPremarket");
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//CALCULATING Daily parameters
+
+TimeFrameSet( inDaily );
+    cond = newdaybar == 1;
+    YesterdayDailyTrueRangeCondition = SparseCompress(cond, YesterdayDailyTrueRange);
+    YesterdayDailyVolumeCondition = SparseCompress(cond, YesterdayDailyVolume);
+    YesterdayDailyOpenCondition = SparseCompress(cond, YesterdayDailyOpen);
+    YesterdayDailyCloseCondition = SparseCompress(cond, YesterdayDailyClose);
+    rsidailyCondition = SparseCompress(cond, rsidaily);
+    
+    cond2 = newday == 1;
+    TodayPremarketVolumeCondition = SparseCompress(cond2, TodayPremarketVolume);
+   
+TimeFrameRestore();
+
+
+D1ATR = TimeFrameExpand(MA(YesterdayDailyTrueRangeCondition,1), inDaily, expandFirst ); //**
+D2ATR = TimeFrameExpand(MA(YesterdayDailyTrueRangeCondition,2), inDaily, expandFirst ); //**
+D3ATR = TimeFrameExpand(MA(YesterdayDailyTrueRangeCondition,3), inDaily, expandFirst ); //**
+D14ATR = TimeFrameExpand(MA(YesterdayDailyTrueRangeCondition,14), inDaily, expandFirst ); //**
+
+D1Volume = TimeFrameExpand(MA(YesterdayDailyVolumeCondition,1), inDaily, expandFirst ); //**
+D2Volume = TimeFrameExpand(MA(YesterdayDailyVolumeCondition,2), inDaily, expandFirst ); //**
+D10Volume = TimeFrameExpand(MA(YesterdayDailyVolumeCondition,10), inDaily, expandFirst ); //**
+D14Volume = TimeFrameExpand(MA(YesterdayDailyVolumeCondition,14), inDaily, expandFirst ); //**
+D20Volume = TimeFrameExpand(MA(YesterdayDailyVolumeCondition,20), inDaily, expandFirst ); //**
+D30Volume = TimeFrameExpand(MA(YesterdayDailyVolumeCondition,30), inDaily, expandFirst ); //**
+D100Volume = TimeFrameExpand(MA(YesterdayDailyVolumeCondition,100), inDaily, expandFirst ); //**
+D200Volume = TimeFrameExpand(MA(YesterdayDailyVolumeCondition,200), inDaily, expandFirst ); //**
+
+D1PremarketVolume = TimeFrameExpand(MA(TodayPremarketVolumeCondition,1), inDaily, expandFirst ); //**
+D2PremarketVolume = TimeFrameExpand(MA(TodayPremarketVolumeCondition,2), inDaily, expandFirst ); //**
+D10PremarketVolume = TimeFrameExpand(MA(TodayPremarketVolumeCondition,10), inDaily, expandFirst ); //**
+D14PremarketVolume = TimeFrameExpand(MA(TodayPremarketVolumeCondition,14), inDaily, expandFirst ); //**
+D20PremarketVolume = TimeFrameExpand(MA(TodayPremarketVolumeCondition,20), inDaily, expandFirst ); //**
+D30PremarketVolume = TimeFrameExpand(MA(TodayPremarketVolumeCondition,30), inDaily, expandFirst ); //**
+D100PremarketVolume = TimeFrameExpand(MA(TodayPremarketVolumeCondition,100), inDaily, expandFirst ); //**
+D200PremarketVolume = TimeFrameExpand(MA(TodayPremarketVolumeCondition,200), inDaily, expandFirst ); //**
+//AddColumn (TodayPremarketVolume, "TodayPremarketVolume");
+//AddColumn (D1PremarketVolume, "D1PremarketVolume");
+//AddColumn (D2PremarketVolume, "D2PremarketVolume");
+
+rsi1daily = TimeFrameExpand(MA(rsidailyCondition,1), inDaily, expandFirst ); //**
+rsi7daily = TimeFrameExpand(MA(rsidailyCondition,7), inDaily, expandFirst ); //**
+rsi14daily = TimeFrameExpand(MA(rsidailyCondition,14), inDaily, expandFirst ); //**
+rsi30daily = TimeFrameExpand(MA(rsidailyCondition,30), inDaily, expandFirst ); //**
+rsi60daily = TimeFrameExpand(MA(rsidailyCondition,60), inDaily, expandFirst ); //**
+rsi100daily = TimeFrameExpand(MA(rsidailyCondition,100), inDaily, expandFirst ); //**
+rsi200daily = TimeFrameExpand(MA(rsidailyCondition,200), inDaily, expandFirst ); //**
+
+D8SMA = TimeFrameExpand(MA(YesterdayDailyOpenCondition,8), inDaily, expandFirst ); //**
+D10SMA = TimeFrameExpand(MA(YesterdayDailyOpenCondition,10), inDaily, expandFirst ); //**
+D20SMA = TimeFrameExpand(MA(YesterdayDailyOpenCondition,20), inDaily, expandFirst ); //**
+D50SMA = TimeFrameExpand(MA(YesterdayDailyOpenCondition,50), inDaily, expandFirst ); //**
+D200SMA = TimeFrameExpand(MA(YesterdayDailyOpenCondition,200), inDaily, expandFirst ); //**
+
+Chg8DaySMAPct = ((Open-D8SMA)/D8SMA)*100; //**
+Chg10DaySMAPct = ((Open-D10SMA)/D10SMA)*100; //**
+Chg20DaySMAPct = ((Open-D20SMA)/D20SMA)*100; //**
+Chg50DaySMAPct = ((Open-D50SMA)/D50SMA)*100; //**
+Chg200DaySMAPct = ((Open-D200SMA)/D200SMA)*100; //**
+
+ytdsVolper10dVol = TimeFrameExpand(MA(YesterdayDailyVolumeCondition,1)/MA(YesterdayDailyVolumeCondition,10), inDaily, expandFirst ); //**
+ytdsVolper30dVol = TimeFrameExpand(MA(YesterdayDailyVolumeCondition,1)/MA(YesterdayDailyVolumeCondition,30), inDaily, expandFirst ); //**
+ytdsVolper100dVol = TimeFrameExpand(MA(YesterdayDailyVolumeCondition,1)/MA(YesterdayDailyVolumeCondition,100), inDaily, expandFirst ); //**
+
+//#########################################################################################################
+//CALCULATING In Time Frame parameters
+
+period2SMAopen = MA(Open, 2);
+period5SMAopen = MA(Open, 5);
+period10SMAopen = MA(Open, 10);
+period15SMAopen = MA(Open, 15);
+period20SMAopen = MA(Open, 20);
+period25SMAopen = MA(Open, 25);
+period50SMAopen = MA(Open, 50);
+period100SMAopen = MA(Open, 100);
+
+BBandTopopen22 = BBandTop(open, 2, 2);
+BBandBotopen22 = BBandBot(open, 2, 2);
+BBandTopopen52 = BBandTop(open, 5, 2);
+BBandBotopen52 = BBandBot(open, 5, 2);
+BBandTopopen102 = BBandTop(open, 10, 2);
+BBandBotopen102 = BBandBot(open, 10, 2);
+BBandTopopen152 = BBandTop(open, 15, 2);
+BBandBotopen152 = BBandBot(open, 15, 2);
+BBandTopopen202 = BBandTop(open, 20, 2);
+BBandBotopen202 = BBandBot(open, 20, 2);
+BBandTopopen302 = BBandTop(open, 30, 2);
+BBandBotopen302 = BBandBot(open, 30, 2);
+BBandTopopen502 = BBandTop(open, 50, 2);
+BBandBotopen502 = BBandBot(open, 50, 2);
+
+macd26 = Ref(MACD(2, 6), -1);
+macd212 = Ref(MACD(2, 12), -1);
+macd515 = Ref(MACD(5, 15), -1);
+macd530 = Ref(MACD(5, 30), -1);
+macd545 = Ref(MACD(5, 45), -1);
+macd560 = Ref(MACD(5, 60), -1);
+macd1020 = Ref(MACD(10, 20), -1);
+macd1030 = Ref(MACD(10, 30), -1);
+macd1040 = Ref(MACD(10, 40), -1);
+macd1050 = Ref(MACD(10, 50), -1);
+macd1530 = Ref(MACD(15, 30), -1);
+macd1545 = Ref(MACD(15, 45), -1);
+macd1560 = Ref(MACD(15, 60), -1);
+macd1575 = Ref(MACD(15, 75), -1);
+
+//#########################################################################################################
+
+preRange = PremarketHigh - PremarketLow; //**
+preRangepercent = ((PremarketHigh - PremarketLow)/PremarketLow); //**
+preRangeATR = preRange/D14ATR; //**
+
+todaysGap = openingOpen - YesterdayDailyClose;  //**
+ABStodaysGap = abs(todaysGap); //**
+todaysGapATR = (todaysGap/YesterdayDailyClose)/D14ATR; //**
+todaysGapPercent = (todaysGap/YesterdayDailyClose)*100; //**
+
+//#########################################################################################################
+
+orDifferenceATR = orDifference/D14ATR; //**
+orDirection = openingOpen - openingClose; //**
+orDirectionATR = orDirection/D14ATR; //**
+
+distancebelowOR = openingLow - TodaysLow; //**
+distancebelowORATR = (openingLow - TodaysLow)/D14ATR; //**
+distancebehighOR = TodaysHigh - openingHigh; //**
+distancebehighORATR = (TodaysHigh - openingHigh)/D14ATR; //**
+
+//#########################################################################################################
+openingbarvolume = ValueWhen(MinutesSinceOpen == 0, Volume); //**
+	
+openingbarvolumeDaily = TimeFrameCompress(openingbarvolume, inDaily);
+D14AvgVolumeDaily = MA(openingbarvolumeDaily, 14); 
+D14avgopeningbarvolume = TimeFrameExpand(D14AvgVolumeDaily, inDaily); //**
+
+D2AvgVolumeDaily = MA(openingbarvolumeDaily, 2); 
+D2avgopeningbarvolume = TimeFrameExpand(D2AvgVolumeDaily, inDaily); //**
+D1AvgVolumeDaily = MA(openingbarvolumeDaily, 1);
+D1avgopeningbarvolume = TimeFrameExpand(D1AvgVolumeDaily, inDaily); //**
+
+D14relopenvolpct5min = ((openingbarvolume/D14avgopeningbarvolume) * 100); //**
+//#########################################################################################################
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//CALCULATING VARIOUS CANDLESTICK PATTERNS
+
+
+HangingMan = IIf( (((H-L)>4*(O-C)) AND ((C-L)/(.001+H-L)>= 0.75) AND ((O-L)/(.001+H-L)>= 0.75)), 1, 0);
+Hammer = IIf( (((H-L)>3*(O-C)) AND ((C-L)/(.001+H-L)>0.6) AND ((O-L)/(.001+H-L)>0.6)), 1, 0);
+shootingstar = IIf( (((H-L)>4*(O-C)) AND ((H-C)/(.001+H-L)>= 0.75) AND ((H-O)/(.001+H-L)>= 0.75)), 1, 0);
+
+AddColumn(HangingMan, "HangingMan");
+AddColumn(Hammer, "Hammer");
+AddColumn(shootingstar, "shootingstar");
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//CALCULATING SYSTEM ENTRY PARAMETERS
+
+systemcondition1 = IIf(HangingMan == 1, 1, 0);
+
+
+systemconditionSum = systemcondition1;
+withinsystemconditionParamters = IIf(systemconditionSum == 1, 1, 0);
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//CHECK IF BUY IS FOUND USING SIMPLE CUTOFFS THAT ARE NOT SYSTEM SPECIFIC
+
+matchingSignal = IIf(withinsystemconditionParamters == 1 AND TimeNum() >= minTimeToEnter AND TimeNum() <= maxTimeToEnter
+			AND D14ATR > D14ATRcutoff AND D14Volume > D14minvolume, 1, 0);
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//CHECK IF THIS IS THE FIRST MATCHING BUY TODAY
+matchingBuy = ExRem(matchingSignal, lastrthbar);
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//CHECK IF BUY IS FOUND WITH SYSTEM SPECIFIC OPTIMIZATIONS
+
+condition1 = IIf(macd212 >= macd212MIN, 1, 0);
+condition2 = IIf(macd212 <= macd212MAX, 1, 0);
+condition3 = IIf(rsi60daily >= rsi60dailyMIN, 1, 0);
+condition4 = IIf(rsi60daily <= rsi60dailyMAX, 1, 0);
+condition5 = IIf(ABStodaysGap >= ABStodaysGapMIN, 1, 0);
+condition6 = IIf(ABStodaysGap <= ABStodaysGapMAX, 1, 0);
+condition7 = IIf(D200SMA >= D200SMAMIN, 1, 0);
+condition8 = IIf(D200SMA <= D200SMAMAX, 1, 0);
+condition9 = IIf(BBandTopopen152 >= BBandTopopen152MIN, 1, 0);
+condition10 = IIf(BBandTopopen152 <= BBandTopopen152MAX, 1, 0);
+condition11 = IIf(D14Volume >= D14VolumeMIN, 1, 0);
+condition12 = IIf(D14Volume <= D14VolumeMAX, 1, 0);
+condition13 = IIf(D14ATR >= D14ATRMIN, 1, 0);
+condition14 = IIf(D14ATR <= D14ATRMAX, 1, 0);
+conditionSum = condition1+condition2+condition3+condition4+condition5+condition6+condition7+condition8+condition9+condition10+condition11+condition12+condition13+condition14;
+withinOptimizedParamters = IIf(conditionSum == 14, 1, 0);
+
+matchingBuyOPT = IIf(matchingBuy == 1 AND withinOptimizedParamters == 1, 1, 0);			
+		
+
+/* 
+AddColumn(condition1, "condition1");
+AddColumn(condition2, "condition2");
+AddColumn(condition3, "condition3");
+AddColumn(condition4, "condition4");
+AddColumn(condition5, "condition5");
+AddColumn(condition6, "condition6");
+AddColumn(condition7, "condition7");
+AddColumn(condition8, "condition8");
+AddColumn(condition9, "condition9");
+AddColumn(condition10, "condition10");
+AddColumn(condition11, "condition11");
+AddColumn(condition12, "condition12");
+AddColumn(condition13, "condition13");
+AddColumn(condition14, "condition14");
+*/
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//CALCULATE POSITION SIZING AND ENTRY AND EXIT PRICES AND ENTRY TRIGGER
+
+positionSizeFactor = D14ATR;
+Rvalue = positionSizeFactor*stopMultiple;
+
+EntryStopPrice = Open + 0.01;
+EntryLimitPrice = Open + (0.05*positionSizeFactor*stopMultiple);
+EntryLoss = Open - Rvalue;
+EntryProfit = Open + (positionSizeFactor*profitRmultiple);
+
+if ( optimizedParameters == 0)
+{
+	entrytrigger = matchingBuy;
+}
+if ( optimizedParameters == 1)
+{
+	entrytrigger = matchingBuyOPT;
+}
+		
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//ADDING BACKTESTING LOGIC
+
+if (addbacktestinglogic == 1)
+{
+	buyFound = 0;
+	buyMatchesArray = 0;
+	stopLossHitPrice = Null;
+	profitTargetHitPrice = Null;
+	entryPrice = Null;
+	exitPrice = Null;
+	matchingExitHit = Null;
+	matchingEntryHit = Null;
+/// 
+	for ( i = 0; i < BarCount; i++)
+	{			
+		
+		if ( entrytrigger[i] == 1 )
+		{
+			buyMatches = 0;
+			
+			j = i-1; 
+			while( yr[j] == yr[i] AND dy[j] == dy[i] AND mnth[j] == mnth[i] AND j > 0 )
+			{
+				if ( entrytrigger[j] == 1)
+				{
+					buyMatches = buyMatches + 1;
+				}				
+				j = j - 1;
+			}
+			
+			buyMatchesArray[i] = buyMatches;
+			if ( buyMatches == 0 )
+			{
+				if ( entrytrigger[i] == 1 )
+				{
+					j = 0; //starting a j = 1 to start counting from the executed trade
+					while( j+i < BarCount AND yr[j+i] == yr[i] AND dy[j+i] == dy[i] AND mnth[j+i] == mnth[i] AND MinutesSinceOpen[j+i] < 390 AND MinutesSinceOpen[j+i] >= 0 )
+					{
+						buyFound[i+j] = 1;
+						j = j + 1;
+					}
+				}
+			}			
+		}
+		
+		if ( buyFound[i] == 1 && MinutesSinceOpen[i] < 390 && MinutesSinceOpen[i] >= 0 )
+		{	
+			
+			if ( High[i] > EntryProfit[i] AND entrytrigger[i] != 1 AND IsNull(stopLossHitPrice[i-1]) OR NOT IsNull(profitTargetHitPrice[i-1]) ) 
+			{
+				//_TRACEF(NumToStr(Entries));
+				profitTargetHitPrice[i] = EntryProfit[i];
+			}
+			if ( NOT IsNull(profitTargetHitPrice[i-1]))
+			{
+				profitTargetHitPrice[i] = profitTargetHitPrice[i-1]; 
+			}
+			if ( Low[i] < EntryLoss[i] AND entrytrigger[i] != 1 AND IsNull(profitTargetHitPrice[i-1]) OR NOT IsNull(stopLossHitPrice[i-1]) )
+			{
+				stopLossHitPrice[i] = EntryLoss[i];
+			}
+			if ( NOT IsNull(stopLossHitPrice[i-1]))
+			{
+				stopLossHitPrice[i] = stopLossHitPrice[i-1];
+			}	
+			
+		}
+		
+		if ( entrytrigger[i] == 1 )
+		{
+			for ( k = 0; k < tradegoodforbars; k++)
+			{
+				if ( i+k < BarCount-1 )
+				{
+					if ( yr[i+k] == yr[i] AND dy[i+k] == dy[i] AND mnth[i+k] == mnth[i] AND i+k < BarCount-1 AND MinutesSinceOpen[i+k] < 390 AND MinutesSinceOpen[i+k] >= 0 )
+					{
+						if ( (Low[i+k] <= EntryLimitPrice[i+k] AND High[i+k] >= EntryStopPrice[i+k]) )
+						{
+							entryPrice[i] = EntryStopPrice[i];
+							matchingEntryHit[i+k] = EntryStopPrice[i+k];
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	for ( i = 0; i < BarCount; i++)
+	{
+		if ( entrytrigger[i] == 1 /*OR matchingShort[i] == 1*/ )
+		{
+			j = 0;
+			while( yr[j+i] == yr[i] AND dy[j+i] == dy[i] AND mnth[j+i] == mnth[i] AND j+i < BarCount-1 AND MinutesSinceOpen[j+i] < 390 AND MinutesSinceOpen[j+i] >= 0)
+			{
+				if ( NOT IsNull(stopLossHitPrice[j+i]) )
+				{
+					exitPrice[j+i] = stopLossHitPrice[j+i];
+					matchingExitHit[j+i] = 1;
+					break;
+				}
+				if ( NOT IsNull(profitTargetHitPrice[j+i]) )
+				{
+					exitPrice[j+i] = profitTargetHitPrice[j+i];
+					matchingExitHit[j+i] = 1;
+					break;
+				}
+				if ( MinutesSinceOpen[j+i] >= 375 AND MinutesSinceOpen[j+i] <= 389 AND IsNull(stopLossHitPrice[j+i]) AND IsNull(profitTargetHitPrice[j+i]) AND IsNull(exitPrice[i]) )
+				{
+					exitPrice[j+i] = Close[j+i];
+					matchingExitHit[j+i] = 1;
+					break;
+				}
+				j = j + 1;
+				
+			}
+		}
+	}
+	
+	for ( i = 0; i < BarCount; i++)
+	{
+		Buy[i] = entrytrigger[i] == 1 AND NOT IsNull(entryPrice[i]);
+		BuyPrice[i] = entryPrice[i];
+		Sell[i] = matchingExitHit[i] == 1;
+		SellPrice[i] = exitPrice[i];
+	} 
+	
+	stopamount = abs(EntryStopPrice-EntryLoss);
+	positionSizeShares = int(RSizeDollars/stopamount);
+	SetPositionSize( positionSizeShares, spsShares ); 
+	
+
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//ADDING TRADE ENTRY LOGIC
+
+if ( addtradeentrylogic == 1 AND BarCount > scanback )
+{
+
+
+	positionSizeSharesBuy = positionSizeShares;
+	ibc = GetTradingInterface("IB");
+	
+	//AddColumn (BarCount-1, "BarCount-1");
+	//AddColumn (BarCount, "BarCount");
+	//AddColumn (BarCount-scanback, "BarCount-scanback");
+
+	for ( i = BarCount-1; i > BarCount-scanback; i--)
+	{
+		//_TRACE(" i = "+NumToStr(i));
+		//_TRACE(" barcount = "+NumToStr(BarCount));
+		//_TRACE(" entrytrigger[ i ] = "+NumToStr(entrytrigger[ i ]));
+		if ( entrytrigger[ i ] == 1 )
+		{
+			//_TRACE(ibc.GetPendingList( 1, "" ));
+			if( ibc.GetPositionSize( Name() ) == 0 AND NOT StrFind(ibc.GetPendingList( 1, "ApiPending" ), Name()) AND NOT StrFind(ibc.GetPendingList( 1, "PreSubmitted" ), Name()) AND NOT StrFind(ibc.GetPendingList( 1, "Submitted" ), Name()) AND NOT StrFind(ibc.GetPendingList( 1, "Error" ), Name()) AND ibc.IsConnected())
+			{
+				_TRACE("Trade Time: "+DateTimeFormat("%Y%m%d %H:%M:%S", dt[i]));
+				GTDdatetime = DateTimeAdd( dt[i], 30, in1Minute );
+				_TRACE("Order Valid Until: "+DateTimeFormat("%Y%m%d %H:%M:%S", GTDdatetime));
+				dt_string = DateTimeFormat("%Y%m%d %H:%M:%S", GTDdatetime );
+				day_string = DateTimeFormat("%Y%m%d", GTDdatetime );
+				
+				if ( positionSizeSharesBuy[i] AND EntryLimitPrice[i] AND EntryStopPrice[i])
+				{
+					_TRACEF("............Debugging Place Order Code............");
+					_TRACEF(NumToStr(positionSizeSharesBuy[i], format = 1.0));
+					_TRACEF(NumToStr(EntryLimitPrice[i], format = 1.2));
+					_TRACEF(NumToStr(EntryStopPrice[i], format = 1.2));
+					_TRACEF( "GTD "+dt_string+" US/Eastern "+Name() );
+					_TRACEF(dt_string+Name());
+					//Setting parent STOP LIMIT
+					parentID = ibc.PlaceOrder(Name(), "BUY", NumToStr(positionSizeSharesBuy[i], format = 1.0), "STPLMT", NumToStr(EntryLimitPrice[i], format = 1.2), NumToStr(EntryStopPrice[i], format = 1.2), "GTD "+dt_string+" US/Eastern", False, 100, "", "", dt_string+Name() );
+					_TRACE( "GTD "+day_string+" 16:59:00 US/Eastern; GTA "+day_string+" 16:47:00 US/Eastern" );
+					//Setting STOP for EOD
+					ibc.PlaceOrder(Name(), "SELL", NumToStr(positionSizeSharesBuy[i]), "MKT", 0, 0, "GTD "+day_string+" 16:05:00 US/Eastern;GAT "+day_string+" 15:45:00 US/Eastern", False, 100, "", parentID, dt_string+Name() );
+					//Setting STOP for System
+					_TRACE(NumToStr(EntryLoss[i], 1.2));
+					ibc.PlaceOrder(Name(), "SELL", NumToStr(positionSizeSharesBuy[i]), "STP", 0, NumToStr(EntryLoss[i], 1.2), "DAY", False, 100, "", parentID, dt_string+Name() );
+					//Setting TAKE PROFIT STOP
+					_TRACE(NumToStr(EntryProfit[i], 1.2));
+					ibc.PlaceOrder(Name(), "SELL", NumToStr(positionSizeSharesBuy[i]), "LMT", NumToStr(EntryProfit[i], 1.2), 0, "DAY", True, 100, "", parentID, dt_string+Name() );
+				}
+			}
+			else
+			{
+				_TRACEF( "ERROR with trade" );
+				_TRACEF( "ERROR SYMBOL: "+Name() );
+			}
+		}
+	}
+	
+}
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//ADDING NOTIFICATION VIA EMAIL AND SLACK
+
+
+tradelogPath = "C:\\Program Files\\AmiBroker\\Reports";
+
+
+if ( BarCount > scanback )
+{
+
+
+	for ( i = BarCount-1; i > BarCount-scanback; i--)
+	{
+
+		if ( entrytrigger[ i ] == 1 )
+		{
+			matchingBuyMessageFirst = "{\"text\":\"################\n"+
+			"OPT PARM = LATEST SCRIPT \n"+
+			"FIRST BUY IDENTIFIED!! \n"+
+			"  "+Name()+"\n"+
+	//		"  on "+mnth+"/"+dy+" "+Hr+" "+Mn+"\n"+
+			"  on "+DateTimeToStr(dt[i])+"\n"+
+			"  "+NumToStr(positionSizeShares[i], format = 1.0)+" shares\n"+
+			"################\n"+
+			"entrytrigger[i] == "+NumToStr(entrytrigger[i])+"\n"+
+			"matchingBuy[i] == "+NumToStr(matchingBuy[i])+"\n"+
+			"dt[i] == "+DateTimeToStr(dt[i])+"\n"+
+			"Low[i] = "+NumToStr(Low[i])+"\n"+
+			"EntryStopPrice[i] = "+NumToStr(EntryStopPrice[i])+"\n"+
+			"High[i] = "+NumToStr(High[i])+"\n"+
+			"EntryLimitPrice[i] = "+NumToStr(EntryLimitPrice[i])+"\n"+
+			"dt[i] == "+DateTimeToStr(dt[i])+"\n"+
+			"High[i] = "+NumToStr(High[i])+"\n"+
+			"EntryLoss[i] = "+NumToStr(EntryLoss[i])+"\n"+
+			"Low[i] = "+NumToStr(Low[i])+"\n"+
+			"EntryProfit[i] = "+NumToStr(EntryProfit[i])+"\n"+
+			"################\n\"}";
+			//_TRACEF(matchingBuyMessageFirst);
+			ih = InternetPostRequest( "https://hooks.slack.com/services/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", matchingBuyMessageFirst, 1+2+4+8 );
+			if( ih )
+			{
+				InternetClose( ih );
+			}
+			else
+			{
+				printf("Your URL is bad !");
+			}
+			//break;
+		
+		// Open the file for writing
+			fh = fopen(tradelogPath+"\\"+Name()+"_"+DateTimeFormat("%Y%m%d%H%M", dt[i])+"_"+DateTimeFormat("%Y%m%d%H%M", Now(format=5))+".csv", "w");
+			_TRACEF(tradelogPath+"\\"+Name()+"_"+DateTimeFormat("%Y%m%d%H%M", dt[i])+".csv");
+			_TRACEF(DateTimeFormat("%Y%m%d%H%M", Now(format=5)));
+			// Check if the file is opened successfully
+			if (fh)
+			{
+				// Write the header line fputs("Ticker,Date,Open,High,Low,Close,Volume,matchingBuy,entrytrigger,todaysGapATR,preRangeATR,ytdsVolper100dVol,,D14ATR,priceintodaysrange\n", fh);
+				fputs("Ticker,Date,Open,High,Low,Close,Volume\n", fh);
+
+				// Loop through each bar and write data
+				for ( j = i; j > i-500; j-- )
+				{
+					if ( BarCount > 500 )
+					{
+						// Format the data as a CSV line
+						line = Name() + "," +
+							   DateTimeToStr(dt[j]) + "," +
+							   NumToStr(Open[j], 1.2) + "," +
+							   NumToStr(High[j], 1.2) + "," +
+							   NumToStr(Low[j], 1.2) + "," +
+							   NumToStr(Close[j], 1.2) + "," +
+							   NumToStr(Volume[j], 1.0, separator=False) + "\n"; /*+
+							   NumToStr(matchingBuyFirst[j]) + "," +
+							   NumToStr(matchingShortFirst[j]) + "," +
+							   NumToStr(todaysGapATR[j]) + "," +
+							   NumToStr(preRangeATR[j]) + "," +
+							   NumToStr(ytdsVolper100dVol[j]) + "," +
+							   NumToStr(rsi2fivemin[j]) + "," +
+							   NumToStr(D14ATR[j]) + "," +
+							   NumToStr(priceintodaysrange[j]) + "\n"; */
+						// Write the line to the file
+						fputs(line, fh);
+					}
+				}
+
+				// Close the file
+				fclose(fh);
+			}
+			else
+			{
+				// Handle the error if the file could not be opened
+				printf("Error: Unable to open file for writing.");
+			}
+		}
+	}
+}
+
+
+
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//ADDING ANALYSIS WINDOWS VARIABLES
+
+//AddColumn (firstBreakout, "fstBO", 1, colorDefault, IIf( firstBreakout == 1, ColorRGB( 0, 255, 0 ) , colorDefault));
+
+AddColumn (matchingSignal, "mhSig", 1, colorDefault, IIf( matchingSignal == 1, ColorRGB( 255, 102, 102 ) , colorDefault));
+AddColumn (matchingBuy, "mhBy", 1, colorDefault, IIf( matchingBuy == 1, ColorRGB( 255, 153, 51 ), colorDefault));
+AddColumn (optimizedParameters, "optParam", 1, colorDefault, IIf( optimizedParameters == 1, ColorRGB( 178, 102, 255 ), colorDefault));
+AddColumn (matchingBuyOPT, "mhByOPT", 1, colorDefault, IIf( matchingBuyOPT == 1, ColorRGB( 153, 255, 51 ), colorDefault));
+AddColumn (entrytrigger, "entyTrig", 1, colorDefault, IIf( entrytrigger == 1, ColorRGB( 51, 255, 255 ), colorDefault));
+
+//AddColumn (matchingBuyTrade, "mchBT", 1, colorDefault, IIf( matchingBuyTrade == 1, ColorRGB( 153, 255, 51 ), colorDefault));
+//AddColumn (Buy, "Buy", 1, colorDefault, IIf( Buy == 1, ColorRGB( 51, 255, 255 ), colorDefault));
+AddColumn (buyFound, "byFnd", 1, colorDefault, IIf( buyFound == 1, ColorRGB( 178, 102, 255 ), colorDefault));
+AddColumn (newday, "newday");
+AddColumn (newdayBar, "newdayBar");
+AddColumn (lastrthbar, "lastrthbar");
+//AddColumn (lowBreak, "lowBk", 1, colorDefault, IIf( lowBreak == 1, ColorRGB( 255, 102, 102 ), colorDefault));	
+//AddColumn (matchingShort, "mchSht", 1, colorDefault, IIf( matchingShort == 1, ColorRGB( 255, 153, 51 ), colorDefault));
+//AddColumn (matchingShortFirst, "mchSF", 1, colorDefault, IIf( matchingShortFirst == 1, ColorRGB( 255, 255, 51 ), colorDefault));
+//AddColumn (matchingShortTrade, "mchST", 1, colorDefault, IIf( matchingShortTrade == 1, ColorRGB( 153, 255, 51 ), colorDefault));
+//AddColumn (Short, "Short", 1, colorDefault, IIf( Short == 1, ColorRGB( 51, 255, 255 ), colorDefault));
+//AddColumn (shortFound, "shtFnd", 1, colorDefault, IIf( shortFound == 1, ColorRGB( 178, 102, 255 ), colorDefault));
+
+//AddColumn (entryPrice, "entryPrice");
+//AddColumn (exitPrice, "exitPrice");
+//AddColumn (matchingExitHit, "matchingExitHit");
+//AddColumn (positionSizeShares, "positionSizeShares");	
+
+//open,close,openingOpen,openingClose,orMax,orMin,orDifference,aboveOrMax,belowOrMin,D1ATR,D14ATR
+//BarTesting = "matchingBuy,open,close,orMax,orMin,openingOpen,openingClose,newday,lastrthbar,highbreakout,lowbreakout";
+//BarTesting = "highbreakout,High,MinutesSinceOpen,matchingBuy,buyFound,MinutesSinceOpen,EntryStopPrice,EntryLimitPrice,EntryLoss,EntryProfit,stopLossHitPrice,profitTargetHitPrice,entryPrice,exitPrice,matchingExitHit";
+//BarTesting = "highbreakout";
+
+//AddColumn (YesterdayDailyVolume, "YesterdayDailyVolume");
+//AddColumn (D1Volume, "D1Volume");
+//AddColumn (lastrthbar, "lastrthbar");
+//AddColumn (ytdsVolper10dVol, "ytdsVolper10dVol");
+//AddColumn (condition3, "condition3");
+
+BarTesting = "todaysGapPercent,D14ATR,EntryStopPrice,EntryLimitPrice,EntryLoss,EntryProfit,stopLossHitPrice,profitTargetHitPrice,entryPrice,exitPrice";
+
+//BarTesting = "dojiness,openingClose,openingOpen,openingHigh,openingLow";
+
+for (item = 0; (metric = StrExtract(BarTesting, item)) != ""; item++) 
+{
+	label = metric;
+	value = VarGet( label );
+	AddColumn( value, label, 1.5 );
+}
+
+
+
+/*
+AddColumn (condition1, "condition1");
+AddColumn (condition2, "condition2");
+AddColumn (condition3, "condition3");
+AddColumn (condition4, "condition4");
+AddColumn (condition5, "condition5");
+AddColumn (condition6, "condition6"); 
+AddColumn (condition7, "condition7");
+AddColumn (condition8, "condition8");
+AddColumn (condition9, "condition9");
+AddColumn (condition10, "condition10");
+AddColumn (condition11, "condition11");
+AddColumn (condition12, "condition12"); 
+AddColumn (condition13, "condition13"); 
+AddColumn (condition14, "condition14"); 		*/
+		
+	
+
+if (addColumnsToExploration == 1)
+{
+	BarColumns = "bar23range,Bars_so_far_today,TodaysHigh,openingLow,TodaysLow,orDifference,orDifferenceATR,orDirection,orDirectionATR,dojiness,distancebelowOR,distancebelowORATR,distancebehighOR,distancebehighORATR,priceinyesterdaysrange,priceinpremarketrange,priceintodaysrange,"+
+		"period2SMAopen,period5SMAopen,period10SMAopen,period15SMAopen,period20SMAopen,period25SMAopen,period50SMAopen,period100SMAopen,"+
+		"D8SMA,D10SMA,D20SMA,D50SMA,D200SMA,Chg8DaySMAPct,Chg10DaySMAPct,Chg20DaySMAPct,Chg50DaySMAPct,Chg200DaySMAPct,"+
+		"BBandTopopen22,BBandBotopen22,BBandTopopen52,BBandBotopen52,BBandTopopen102,BBandBotopen102,BBandTopopen152,BBandBotopen152,BBandTopopen202,BBandBotopen202,BBandTopopen302,BBandBotopen302,BBandTopopen502,BBandBotopen502,macd26,macd212,macd515,macd530,macd545,macd560,macd1020,macd1030,macd1040,macd1050,macd1530,macd1545,macd1560,macd1575,"+
+		"YesterdayDailyTrueRange,D1ATR,D2ATR,D3ATR,D14ATR,YesterdayDailyVolume,D1Volume,D2Volume,D10Volume,D14Volume,D20Volume,D100Volume,D200Volume,"+
+		"TodayPremarketVolume,D1PremarketVolume,D2PremarketVolume,D10PremarketVolume,D14PremarketVolume,D20PremarketVolume,D30PremarketVolume,D100PremarketVolume,D200PremarketVolume,"+
+		"rsidaily,rsi1daily,rsi7daily,rsi14daily,rsi30daily,rsi60daily,rsi100daily,rsi200daily,"+
+		"ytdsVolper10dVol,ytdsVolper30dVol,ytdsVolper100dVol,todaysGap,ABStodaysGap,todaysGapATR,todaysGapPercent,preRangepercent,preRangeATR,openingbarvolume,"+
+		"D14avgopeningbarvolume,D2avgopeningbarvolume,D1avgopeningbarvolume,D14relopenvolpct5min";
+
+	for (item = 0; (metric = StrExtract(BarColumns, item)) != ""; item++) 
+	{
+		label = metric;
+		value = VarGet( label );
+		AddColumn( value, label, 1.5 );
+	}
+}
+
+
+
+
+
+
+if (filtering == 0)
+{
+	Filter = 1;
+	SetSortColumns( -2 );
+}
+
+if (filtering == 1)
+{
+	Filter = matchingBuy == 1;
+	SetSortColumns( -7, -2 );
+}
+
+if (filtering == 2)
+{
+	Filter = matchingBuyOPT == 1;
+}
+
+if (filtering == 3)
+{
+	Filter = matchingSignal == 1;
+	SetSortColumns( -3, -2 );
+}
+if (filtering == 4)
+{
+	Filter = newday == 1;
+	SetSortColumns( -3, -2 );
+}
